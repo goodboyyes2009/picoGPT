@@ -27,10 +27,12 @@ A quick breakdown of each of the files:
 * `utils.py` contains the code to download and load the GPT-2 model weights, tokenizer, and hyper-parameters.
 * `gpt2.py` contains the actual GPT model and generation code which we can run as a python script.
 * `gpt2_pico.py` is the same as `gpt2.py`, but in even fewer lines of code. Why? Because why not 😎👍.
+* `weight_convert.py` convert tf weight into torch weight.
+* `gpt2_torch.py` gpt2.py reimplemention use pytorch
 
 #### Dependencies
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt.bak
 ```
 Tested on `Python 3.9.10`.
 
@@ -55,4 +57,31 @@ python gpt2.py \
     --n_tokens_to_generate 40 \
     --model_size "124M" \
     --models_dir "models"
+```
+
+### PyTorch Implemention
+```bash
+pip install -r requirements.txt
+```
+run on `Python 3.8.10`.
+
+
+#### Usage
+Assume your 124M model has been downloaded at `/models/gpt2-tf/`, modifiy some var and then run the below script.
+```bash
+python3 weight_convert.py
+```
+you will see model.pt in current directory.
+
+For use the mode.pt to do generate, run the below script.
+```bash
+python gpt2.py \
+    "Alan Turing theorized that computers would one day become" \
+    --n_tokens_to_generate 40 \
+    --model_size "124M" \
+    --models_dir "/models/gpt2-tf/"
+```
+Which generates
+```
+the the the the the the the the the the the the the the the the,,,,,,,,,,,,,,,,,,,,,,,,
 ```
