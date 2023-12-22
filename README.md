@@ -75,7 +75,7 @@ you will see model.pt in current directory.
 
 For use the mode.pt to do generate, run the below script.
 ```bash
-python gpt2.py \
+python gpt2_torch.py \
     "Alan Turing theorized that computers would one day become" \
     --n_tokens_to_generate 40 \
     --model_size "124M" \
