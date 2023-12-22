@@ -39,11 +39,10 @@ class TransformerBlock(nn.Module):
     
 
     def forward(self, x):
-        x = self.norm1(x)
-        x = x + self.mulit_head_attention(x)
-        x = self.norm2(x)
-        # dump("attn_x_torch.pkl", self.ffn(x).detach().cpu().numpy())
-        x = x + self.ffn(x)
+        norm = self.norm1(x)
+        x = x + self.mulit_head_attention(norm)
+        norm = self.norm2(x)
+        x = x + self.ffn(norm)
         return x
 
 class FFN(nn.Module):

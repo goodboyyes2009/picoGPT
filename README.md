@@ -63,7 +63,7 @@ python gpt2.py \
 ```bash
 pip install -r requirements.txt
 ```
-run on `Python 3.8.10`.
+Tested on `Python 3.8.10`.
 
 
 #### Usage
@@ -83,5 +83,7 @@ python gpt2_torch.py \
 ```
 Which generates
 ```
-the the the the the the the the the the the the the the the the,,,,,,,,,,,,,,,,,,,,,,,,
+the most powerful machines on the planet.
+
+The computer is a machine that can perform complex calculations, and it can perform these calculations in a way that is very similar to the human brain.
 ```
