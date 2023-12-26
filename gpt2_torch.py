@@ -17,16 +17,26 @@ class GPT2(nn.Module):
         self.linear = nn.Linear(config['n_embd'], config['n_vocab'],bias=False)
 
     
-    def forward(self, inputs):
+    def forward(self, inputs, kvcache=None):
+        if not kvcache:
+            kvcache = [None] * self.config['n_layer']
+            position_embd = self.position_embedding(torch.arange(0, len(inputs), dtype=torch.int64))
+        else:
+            position_embd = self.position_embedding(torch.tensor(len(inputs) -1, dtype=torch.int64))
+            inputs = inputs[-1].unsqueeze(0)
+
         # token + positional embeddings
         token_embd = self.token_embedding(inputs)
-        position_embd = self.position_embedding(torch.arange(0, len(inputs), dtype=torch.int64))
         x = token_embd + position_embd
-        for block in self.transformer_block:
-            x = block(x)
+        new_kvcache = []
+        for block, layer_past in zip(self.transformer_block, kvcache):
+            x, updated_cache = block(x, layer_past)
+            new_kvcache.append(updated_cache) # TODO: inplace extend new cache instead of re-saving whole
+
+        # new_kvcache = torch.from_numpy(np.array(new_kvcache))
         x = self.norm(x)
         x = self.linear(x)
-        return x
+        return x, new_kvcache
 
 
 class TransformerBlock(nn.Module):
@@ -38,12 +48,13 @@ class TransformerBlock(nn.Module):
         self.norm2 = LayerNorm(n_embd=n_embd)
     
 
-    def forward(self, x):
+    def forward(self, x, kvcache=None):
         norm = self.norm1(x)
-        x = x + self.mulit_head_attention(norm)
+        attn_out, kvcache_updated = self.mulit_head_attention(norm, kvcache)
+        x = x + attn_out
         norm = self.norm2(x)
         x = x + self.ffn(norm)
-        return x
+        return x, kvcache_updated
 
 class FFN(nn.Module):
     def __init__(self, n_embd) -> None:
@@ -64,21 +75,37 @@ class MultiHeadAttention(nn.Module):
         self.c_attn = nn.Linear(n_embd, 3 * n_embd)
         self.c_proj = nn.Linear(n_embd, n_embd)
     
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, kvcache=None):
         seq_len = x.shape[0] # shape=[seq_len, n_embd]
         x = self.c_attn(x) # shape=[seq_len, 3 * n_embd]
         # split qkv into key, query, value
         qkv = x.view(seq_len, 3, -1).transpose(0, 1) # [seq_len, 3 * n_embd] -> [3, seq_len, n_embd]
-        qkv_heads = qkv.view(3, seq_len, self.num_heads, -1).transpose(1,2) # [3, num_heads, seq_len, n_embd/num_heads]
+        
+        if kvcache:
+            # qkv
+            new_q, new_k, new_v = qkv # new_q, new_k, new_v = [1, n_embd]
+            old_k, old_v = kvcache
+            k = torch.cat((old_k, new_k)) # k=[n_seq, n_embd], where n_seq = prev_n_seq + 1
+            v = torch.cat((old_v, new_v)) # k=[n_seq, n_embd], where n_seq = prev_n_seq + 1
+            qkv = [new_q, k, v]
+        
+        current_cache = [qkv[1], qkv[2]]
+
         # causal mask to hide future inputs from being attended to
 
-        causal_mask = (1 - torch.tril(torch.ones(x.shape[0], x.shape[0]).type_as(x))) * -1e10  # [n_seq, n_seq]
+        if kvcache:
+            qkv_heads = list(map(lambda x: x.view(x.shape[0], self.num_heads, -1).transpose(0, 1), qkv))
+            # when we pass kvcache, we are passing single token as input which need to attend to all previous tokens, so we create mask with all 0s
+            causal_mask = torch.zeros((1, k.shape[0]))
+        else:
+            qkv_heads = qkv.view(3, seq_len, self.num_heads, -1).transpose(1,2) # [3, num_heads, seq_len, n_embd/num_heads]
+            causal_mask = (1 - torch.tril(torch.ones(x.shape[0], x.shape[0]).type_as(x))) * -1e10  # [n_seq, n_seq]
 
         attention_out = self.attention(qkv_heads[0], qkv_heads[1], qkv_heads[2], causal_mask) # [3, n_head, n_seq, n_embd/n_head] -> [n_head, n_seq, n_embd/n_head]
         # merge heads
         concat_all_attentions = torch.hstack([attention_out[i] for i in range(self.num_heads)]) # [n_head, n_seq, n_embd/n_head] -> [n_seq, n_embd]
         x = self.c_proj(concat_all_attentions) # [n_seq, n_embd] -> [n_seq, n_embd]
-        return x
+        return x, current_cache
         
 
     def attention(self, q:torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor):
@@ -115,8 +142,9 @@ def gelu(x: torch.Tensor):
 def generate(model, inputs, n_tokens_to_generate):
     from tqdm import tqdm
 
+    kvcache = None
     for _ in tqdm(range(n_tokens_to_generate), "generating"):  # auto-regressive decode loop
-        logits = model(inputs)  # model forward pass
+        logits, kvcache = model(inputs, kvcache)  # model forward pass
 
         next_id = torch.argmax(logits[-1])  # greedy sampling
 

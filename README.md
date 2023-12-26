@@ -20,6 +20,7 @@ picoGPT features:
 * top-p sampling? ❌ top-k? ❌ temperature? ❌ categorical sampling?! ❌ greedy? ✅
 * Readable? `gpt2.py` ✅ `gpt2_pico.py` ❌
 * Smol??? ✅✅✅✅✅✅ YESS!!! TEENIE TINY in fact 🤏
+* KV Cache? `gpt2_torch.py` ✅
 
 A quick breakdown of each of the files:
 
