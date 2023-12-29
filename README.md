@@ -87,3 +87,9 @@ the most powerful machines on the planet.
 
 The computer is a machine that can perform complex calculations, and it can perform these calculations in a way that is very similar to the human brain.
 ```
+
+#### TODO LIST
+- use einops
+- use flashattention
+- use torch compile
+- use vLLM to do inference
