@@ -135,3 +135,4 @@ websocket-client==1.7.0
 Werkzeug==2.2.2
 wrapt==1.14.1
 zipp==3.10.0
+einops==0.7.0
