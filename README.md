@@ -89,7 +89,6 @@ The computer is a machine that can perform complex calculations, and it can perf
 ```
 
 #### TODO LIST
-- use einops
 - use flashattention
 - use torch compile
 - use vLLM to do inference
