@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange, einsum
 
 class GPT2(nn.Module):
     def __init__(self, config) -> None:
@@ -68,8 +69,11 @@ class MultiHeadAttention(nn.Module):
         seq_len = x.shape[0] # shape=[seq_len, n_embd]
         x = self.c_attn(x) # shape=[seq_len, 3 * n_embd]
         # split qkv into key, query, value
-        qkv = x.view(seq_len, 3, -1).transpose(0, 1) # [seq_len, 3 * n_embd] -> [3, seq_len, n_embd]
-        qkv_heads = qkv.view(3, seq_len, self.num_heads, -1).transpose(1,2) # [3, num_heads, seq_len, n_embd/num_heads]
+        # qkv = x.view(seq_len, 3, -1).transpose(0, 1) # [seq_len, 3 * n_embd] -> [3, seq_len, n_embd]
+        qkv = rearrange(x, 'seq_len (n n_embd) -> n seq_len n_embd', n=3)
+        # qkv_heads = qkv.view(3, seq_len, self.num_heads, -1).transpose(1,2) # [3, num_heads, seq_len, n_embd/num_heads]
+        qkv_heads = rearrange(qkv, 'n seq_len (n_heads head_embd) -> n n_heads seq_len head_embd', n_heads=self.num_heads)
+
         # causal mask to hide future inputs from being attended to
 
         causal_mask = (1 - torch.tril(torch.ones(x.shape[0], x.shape[0]).type_as(x))) * -1e10  # [n_seq, n_seq]
@@ -82,14 +86,16 @@ class MultiHeadAttention(nn.Module):
         
 
     def attention(self, q:torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor):
-        qk = torch.bmm(q, k.transpose(1, 2)) # [n_head, seq_len, n_embd/n_head] * [n_head, n_embd/n_head, seq_len] = [n_head, seq_len, seq_len]
+        # qk = torch.bmm(q, k.transpose(1, 2)) # [n_head, seq_len, n_embd/n_head] * [n_head, n_embd/n_head, seq_len] = [n_head, seq_len, seq_len]
+        qk = einsum(q, k, 'n_head seq_len head_embd, n_head seq_len_1 head_embd -> n_head seq_len seq_len_1')
         qk = qk / torch.sqrt(torch.tensor(q.shape[-1]))
         # qk shape=[n_head, seq_len, seq_len]
         # mask shape=[seq_len, seq_len]
         qk = qk + mask
         # qk_clone = F.softmax(qk) # dim=0
         qk = F.softmax(qk, dim=-1)
-        return torch.bmm(qk, v)
+        attention = einsum(qk, v, 'n_head seq_len seq_len_1, n_head seq_len_1 head_embd -> n_head seq_len head_embd')
+        return attention
         
 
 
